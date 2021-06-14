@@ -9,12 +9,12 @@ import java.util.Arrays;
 
 public class VersionedSerializerModifier extends BeanSerializerModifier {
 
-    @Override
-    public JsonSerializer<?> modifySerializer(SerializationConfig config, BeanDescription beanDesc, JsonSerializer<?> serializer) {
+  @Override
+  public JsonSerializer<?> modifySerializer(SerializationConfig config, BeanDescription beanDesc, JsonSerializer<?> serializer) {
 
-        if (Arrays.asList(beanDesc.getBeanClass().getInterfaces()).contains(CdmCompatibilitySpec.class)) {
-            return new VersionedSerializer((JsonSerializer<Object>) serializer);
-        }
-        return serializer;
+    if (Arrays.asList(beanDesc.getBeanClass().getInterfaces()).contains(CdmCompatibilitySpec.class)) {
+      return new VersionedSerializer((JsonSerializer<Object>) serializer);
     }
+    return serializer;
+  }
 }
