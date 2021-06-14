@@ -8,17 +8,17 @@ import java.io.IOException;
 
 public class VersionedSerializer extends JsonSerializer<CdmCompatibilitySpec> {
 
-    private final JsonSerializer<Object> defaultSerializer;
+  private final JsonSerializer<Object> defaultSerializer;
 
-    public VersionedSerializer(JsonSerializer<Object> defaultSerializer) {
+  public VersionedSerializer(JsonSerializer<Object> defaultSerializer) {
 
-        this.defaultSerializer = defaultSerializer;
-    }
+    this.defaultSerializer = defaultSerializer;
+  }
 
-    @Override
-    public void serialize(CdmCompatibilitySpec cdmCompatibilitySpec, JsonGenerator gen, SerializerProvider provider) throws IOException {
+  @Override
+  public void serialize(CdmCompatibilitySpec cdmCompatibilitySpec, JsonGenerator gen, SerializerProvider provider) throws IOException {
 
-        CdmVersionUtils.determineCdmCompatibility(cdmCompatibilitySpec);
-        defaultSerializer.serialize(cdmCompatibilitySpec, gen, provider);
-    }
+    CdmVersionUtils.determineCdmCompatibility(cdmCompatibilitySpec);
+    defaultSerializer.serialize(cdmCompatibilitySpec, gen, provider);
+  }
 }

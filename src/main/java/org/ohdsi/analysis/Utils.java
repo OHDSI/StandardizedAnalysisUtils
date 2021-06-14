@@ -32,217 +32,221 @@ import java.util.regex.Pattern;
 
 public class Utils {
 
-    private static final Set<Module> OBJECT_MAPPER_MODULES = ConcurrentHashMap.newKeySet();
-    private static HandlerInstantiator OBJECT_MAPPER_HANDLER_INSTANTIATOR = null;
-    private static final Map<ObjectMapperConfig, ObjectMapper> OBJECT_MAPPER = new ConcurrentHashMap<>();
+  private static final Set<Module> OBJECT_MAPPER_MODULES = ConcurrentHashMap.newKeySet();
+  private static HandlerInstantiator OBJECT_MAPPER_HANDLER_INSTANTIATOR = null;
+  private static final Map<ObjectMapperConfig, ObjectMapper> OBJECT_MAPPER = new ConcurrentHashMap<>();
 
-    protected static class ObjectMapperConfig {
+  protected static class ObjectMapperConfig {
 
-        private boolean includeNulls;
+    private boolean includeNulls;
 
-        public static ObjectMapperConfig newInstance() {
+    public static ObjectMapperConfig newInstance() {
 
-            return new ObjectMapperConfig();
-        }
-
-        public ObjectMapperConfig withIncludeNulls(boolean includeNulls) {
-
-            this.includeNulls = includeNulls;
-            return this;
-        }
-
-        public boolean isIncludeNulls() {
-
-            return includeNulls;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ObjectMapperConfig that = (ObjectMapperConfig) o;
-            return includeNulls == that.includeNulls;
-        }
-
-        @Override
-        public int hashCode() {
-
-            return Objects.hash(includeNulls);
-        }
+      return new ObjectMapperConfig();
     }
 
-    public static void registerObjectMapperModule(Module module) {
+    public ObjectMapperConfig withIncludeNulls(boolean includeNulls) {
 
-        OBJECT_MAPPER_MODULES.add(module);
-        OBJECT_MAPPER.clear();
+      this.includeNulls = includeNulls;
+      return this;
     }
 
-    public static void unregisterObjectMapperModule(Module module) {
+    public boolean isIncludeNulls() {
 
-        OBJECT_MAPPER_MODULES.remove(module);
-        OBJECT_MAPPER.clear();
+      return includeNulls;
     }
 
-    public static void setObjectMapperHandlerInstantiator(HandlerInstantiator instantiator) {
+    @Override
+    public boolean equals(Object o) {
 
-        OBJECT_MAPPER_HANDLER_INSTANTIATOR = instantiator;
-        OBJECT_MAPPER.clear();
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ObjectMapperConfig that = (ObjectMapperConfig) o;
+      return includeNulls == that.includeNulls;
     }
 
-    private static ObjectMapper getObjectMapper() {
+    @Override
+    public int hashCode() {
 
-        return getObjectMapper(ObjectMapperConfig.newInstance().withIncludeNulls(false));
+      return Objects.hash(includeNulls);
+    }
+  }
+
+  public static void registerObjectMapperModule(Module module) {
+
+    OBJECT_MAPPER_MODULES.add(module);
+    OBJECT_MAPPER.clear();
+  }
+
+  public static void unregisterObjectMapperModule(Module module) {
+
+    OBJECT_MAPPER_MODULES.remove(module);
+    OBJECT_MAPPER.clear();
+  }
+
+  public static void setObjectMapperHandlerInstantiator(HandlerInstantiator instantiator) {
+
+    OBJECT_MAPPER_HANDLER_INSTANTIATOR = instantiator;
+    OBJECT_MAPPER.clear();
+  }
+
+  private static ObjectMapper getObjectMapper() {
+
+    return getObjectMapper(ObjectMapperConfig.newInstance().withIncludeNulls(false));
+  }
+
+  private static ObjectMapper getObjectMapper(ObjectMapperConfig objectMapperConfig) {
+
+    return OBJECT_MAPPER.computeIfAbsent(objectMapperConfig, config -> buildObjectMapper(objectMapperConfig));
+  }
+
+  private static ObjectMapper buildObjectMapper(ObjectMapperConfig config) {
+
+    ObjectMapper objectMapper = new ObjectMapper();
+    objectMapper.disable(
+            MapperFeature.AUTO_DETECT_CREATORS,
+            MapperFeature.AUTO_DETECT_GETTERS,
+            MapperFeature.AUTO_DETECT_IS_GETTERS
+    );
+
+    objectMapper.disable(
+            SerializationFeature.FAIL_ON_EMPTY_BEANS
+    );
+
+    objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+
+    if (!config.isIncludeNulls()) {
+      objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
     }
 
-    private static ObjectMapper getObjectMapper(ObjectMapperConfig objectMapperConfig) {
+    objectMapper.registerModule(
+            new SimpleModule()
+                    .setSerializerModifier(new VersionedSerializerModifier())
+                    .setDeserializerModifier(new VersionedDeserializerModifier())
+    );
 
-        return OBJECT_MAPPER.computeIfAbsent(objectMapperConfig, config -> buildObjectMapper(objectMapperConfig));
+    OBJECT_MAPPER_MODULES.forEach(objectMapper::registerModule);
+
+    if (OBJECT_MAPPER_HANDLER_INSTANTIATOR != null) {
+      objectMapper.setHandlerInstantiator(OBJECT_MAPPER_HANDLER_INSTANTIATOR);
     }
 
-    private static ObjectMapper buildObjectMapper(ObjectMapperConfig config) {
+    return objectMapper;
+  }
 
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.disable(
-                MapperFeature.AUTO_DETECT_CREATORS,
-                MapperFeature.AUTO_DETECT_GETTERS,
-                MapperFeature.AUTO_DETECT_IS_GETTERS
-        );
+  public static String serializePretty(Object object) throws JsonProcessingException {
 
-        objectMapper.disable(
-                SerializationFeature.FAIL_ON_EMPTY_BEANS
-        );
+    return serializePretty(object, false);
+  }
 
-        objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+  public static String serializePretty(Object object, Boolean includeNulls) throws JsonProcessingException {
 
-        if (!config.isIncludeNulls()) {
-            objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        }
+    ObjectMapper objectMapper = getObjectMapper(ObjectMapperConfig.newInstance().withIncludeNulls(includeNulls));
 
-        objectMapper.registerModule(
-                new SimpleModule()
-                        .setSerializerModifier(new VersionedSerializerModifier())
-                        .setDeserializerModifier(new VersionedDeserializerModifier())
-        );
+    objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
 
-        OBJECT_MAPPER_MODULES.forEach(objectMapper::registerModule);
+    DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter() {
 
-        if (OBJECT_MAPPER_HANDLER_INSTANTIATOR != null) {
-            objectMapper.setHandlerInstantiator(OBJECT_MAPPER_HANDLER_INSTANTIATOR);
-        }
+      public DefaultPrettyPrinter withSeparators(Separators separators) {
 
-        return objectMapper;
+        _separators = separators;
+        _objectFieldValueSeparatorWithSpaces = separators.getObjectFieldValueSeparator() + " ";
+        return this;
+      }
+    };
+
+    prettyPrinter.indentArraysWith(SYSTEM_LINEFEED_INSTANCE);
+
+    return objectMapper.writer(prettyPrinter).writeValueAsString(object);
+  }
+
+  public static String serialize(Object object) {
+
+    return serialize(object, false);
+  }
+
+  public static String serialize(Object object, Boolean includeNulls) {
+
+    try {
+      ObjectMapper objectMapper = getObjectMapper(ObjectMapperConfig.newInstance().withIncludeNulls(includeNulls));
+      return objectMapper.writeValueAsString(object);
+    } catch (Exception ex) {
+      throw new RuntimeException(ex);
     }
+  }
 
-    public static String serializePretty(Object object) throws JsonProcessingException {
+  public static <T> T deserialize(String data, TypeReference<T> typeRef) {
 
-        return serializePretty(object, false);
+    ObjectMapper objectMapper = getObjectMapper();
+    if (data == null) {
+      return null;
     }
-
-    public static String serializePretty(Object object, Boolean includeNulls) throws JsonProcessingException {
-
-        ObjectMapper objectMapper = getObjectMapper(ObjectMapperConfig.newInstance().withIncludeNulls(includeNulls));
-
-        objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
-
-        DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter() {
-
-            public DefaultPrettyPrinter withSeparators(Separators separators) {
-
-                _separators = separators;
-                _objectFieldValueSeparatorWithSpaces = separators.getObjectFieldValueSeparator() + " ";
-                return this;
-            }
-        };
-
-        prettyPrinter.indentArraysWith(SYSTEM_LINEFEED_INSTANCE);
-
-        return objectMapper.writer(prettyPrinter).writeValueAsString(object);
+    try {
+      return objectMapper.readValue(data, typeRef);
+    } catch (Exception ex) {
+      throw new RuntimeException(ex);
     }
+  }
 
-    public static String serialize(Object object) {
+  public static <T> T deserialize(String data, JavaType typeRef) {
 
-        return serialize(object, false);
+    ObjectMapper objectMapper = getObjectMapper();
+    if (data == null) {
+      return null;
     }
-
-    public static String serialize(Object object, Boolean includeNulls) {
-
-        try {
-            ObjectMapper objectMapper = getObjectMapper(ObjectMapperConfig.newInstance().withIncludeNulls(includeNulls));
-            return objectMapper.writeValueAsString(object);
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+    try {
+      return objectMapper.readValue(data, typeRef);
+    } catch (Exception ex) {
+      throw new RuntimeException(ex);
     }
+  }
 
-    public static <T> T deserialize(String data, TypeReference<T> typeRef) {
+  public static <T> T deserialize(String data, Function<TypeFactory, JavaType> typeFunction) {
 
-        ObjectMapper objectMapper = getObjectMapper();
-        if (data == null) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(data, typeRef);
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+    Objects.requireNonNull(typeFunction);
+    ObjectMapper objectMapper = getObjectMapper();
+    JavaType type = typeFunction.apply(objectMapper.getTypeFactory());
+    if (data == null) {
+      return null;
     }
-
-    public static <T> T deserialize(String data, JavaType typeRef) {
-
-        ObjectMapper objectMapper = getObjectMapper();
-        if (data == null) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(data, typeRef);
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+    try {
+      return objectMapper.readValue(data, type);
+    } catch (Exception ex) {
+      throw new RuntimeException(ex);
     }
+  }
 
-    public static <T> T deserialize(String data, Function<TypeFactory, JavaType> typeFunction) {
+  public static <T> T deserialize(String data, Class<T> objectClass) {
 
-        Objects.requireNonNull(typeFunction);
-        ObjectMapper objectMapper = getObjectMapper();
-        JavaType type = typeFunction.apply(objectMapper.getTypeFactory());
-        if (data == null) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(data, type);
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+    Objects.requireNonNull(objectClass);
+    ObjectMapper objectMapper = getObjectMapper();
+    if (data == null) {
+      return null;
     }
-
-    public static <T> T deserialize(String data, Class<T> objectClass) {
-
-        Objects.requireNonNull(objectClass);
-        ObjectMapper objectMapper = getObjectMapper();
-        if (data == null) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(data, objectClass);
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+    try {
+      return objectMapper.readValue(data, objectClass);
+    } catch (Exception ex) {
+      throw new RuntimeException(ex);
     }
+  }
 
-    public static boolean isAlphaNumeric(String str) {
+  public static boolean isAlphaNumeric(String str) {
 
-        Pattern p = Pattern.compile("^[a-zA-Z0-9.]+$");
-        Matcher m = p.matcher(str);
-        return m.find();
+    Pattern p = Pattern.compile("^[a-zA-Z0-9.]+$");
+    Matcher m = p.matcher(str);
+    return m.find();
+  }
+
+  public static String GetResourceAsString(String resource) {
+
+    try (InputStream inputStream = Utils.class.getResourceAsStream(resource)) {
+      return IOUtils.toString(inputStream, "UTF-8");
+    } catch (IOException e) {
+      throw new RuntimeException("Resource not found: " + resource);
     }
-
-    public static String GetResourceAsString(String resource) {
-
-        try (InputStream inputStream = Utils.class.getResourceAsStream(resource)) {
-            return IOUtils.toString(inputStream, "UTF-8");
-        } catch (IOException e) {
-            throw new RuntimeException("Resource not found: " + resource);
-        }
-    }
+  }
 }

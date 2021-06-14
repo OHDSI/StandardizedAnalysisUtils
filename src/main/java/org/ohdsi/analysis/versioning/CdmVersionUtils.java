@@ -14,93 +14,93 @@ import java.util.stream.Collectors;
 
 public class CdmVersionUtils {
 
-    private static final String VERSION_X_RANGE = "*";
+  private static final String VERSION_X_RANGE = "*";
 
-    public static void determineCdmCompatibility(CdmCompatibilitySpec compatibilitySpec) {
+  public static void determineCdmCompatibility(CdmCompatibilitySpec compatibilitySpec) {
 
-        compatibilitySpec.setCdmVersionRange(MoreObjects.firstNonNull(compatibilitySpec.getCdmVersionRange(), VERSION_X_RANGE));
+    compatibilitySpec.setCdmVersionRange(MoreObjects.firstNonNull(compatibilitySpec.getCdmVersionRange(), VERSION_X_RANGE));
 
-        Map<String, String> derivedCdmRanges = new HashMap<>();
-        resolveCdmRanges(derivedCdmRanges, null, compatibilitySpec);
+    Map<String, String> derivedCdmRanges = new HashMap<>();
+    resolveCdmRanges(derivedCdmRanges, null, compatibilitySpec);
 
-        if (derivedCdmRanges.size() > 0) {
-            String derivedIntersection = SemverUtils.getRangesIntersection(new ArrayList<>(derivedCdmRanges.values()));
-            if (derivedIntersection == null) {
-                throw new IncompatibleVersionsException("Selected parameters don't have a common compatible CDM range");
-            }
+    if (derivedCdmRanges.size() > 0) {
+      String derivedIntersection = SemverUtils.getRangesIntersection(new ArrayList<>(derivedCdmRanges.values()));
+      if (derivedIntersection == null) {
+        throw new IncompatibleVersionsException("Selected parameters don't have a common compatible CDM range");
+      }
 
-            if (!compatibilitySpec.getCdmVersionRange().equals(VERSION_X_RANGE)) {
-                String overallIntersection = SemverUtils.getRangesIntersection(Arrays.asList(compatibilitySpec.getCdmVersionRange(), derivedIntersection));
-                if (overallIntersection == null) {
-                    throw new IncompatibleVersionsException(
-                            String.format("User-defined CDM range (%s) does not include derived CDM range (%s)", compatibilitySpec.getCdmVersionRange(), derivedIntersection)
-                    );
-                }
-                compatibilitySpec.setCdmVersionRange(overallIntersection);
+      if (!compatibilitySpec.getCdmVersionRange().equals(VERSION_X_RANGE)) {
+        String overallIntersection = SemverUtils.getRangesIntersection(Arrays.asList(compatibilitySpec.getCdmVersionRange(), derivedIntersection));
+        if (overallIntersection == null) {
+          throw new IncompatibleVersionsException(
+                  String.format("User-defined CDM range (%s) does not include derived CDM range (%s)", compatibilitySpec.getCdmVersionRange(), derivedIntersection)
+          );
+        }
+        compatibilitySpec.setCdmVersionRange(overallIntersection);
+      } else {
+        compatibilitySpec.setCdmVersionRange(derivedIntersection);
+      }
+    }
+  }
+
+  private static void resolveCdmRanges(Map<String, String> ranges, String path, Object obj) {
+
+    try {
+      String r;
+      if ((r = parseCdmRange(obj.getClass())) != null) {
+        ranges.put(rangeKey(obj.getClass().getSimpleName(), null, path), r);
+      }
+      for (Field field : obj.getClass().getFields()) {
+        field.setAccessible(true);
+        Object value = field.get(obj);
+        if (value != null) {
+          String fieldPath = joinPath(path, field);
+          if ((r = parseCdmRange(field)) != null) {
+            ranges.put(rangeKey(obj.getClass().getSimpleName(), field.getName(), fieldPath), r);
+          }
+          if (!ClassUtils.isPrimitiveOrWrapper(field.getType()) && !(value instanceof Enum) && !(value instanceof String)) {
+            if (value instanceof Object[]) {
+              int i = 0;
+              for (Object v : (Object[]) value) {
+                resolveCdmRanges(ranges, joinPathIdx(fieldPath, i++), v);
+              }
+            } else if (value instanceof Iterable) {
+              int[] idx = {0};
+              ((Iterable) value).forEach(v -> resolveCdmRanges(ranges, joinPathIdx(fieldPath, idx[0]++), v));
             } else {
-                compatibilitySpec.setCdmVersionRange(derivedIntersection);
+              resolveCdmRanges(ranges, fieldPath, value);
             }
+          }
         }
+      }
+    } catch (IllegalAccessException ex) {
+      throw new RuntimeException(ex);
     }
+  }
 
-    private static void resolveCdmRanges(Map<String, String> ranges, String path, Object obj) {
+  private static String joinPath(String path, Field field) {
 
-        try {
-            String r;
-            if ((r = parseCdmRange(obj.getClass())) != null) {
-                ranges.put(rangeKey(obj.getClass().getSimpleName(), null, path), r);
-            }
-            for (Field field : obj.getClass().getFields()) {
-                field.setAccessible(true);
-                Object value = field.get(obj);
-                if (value != null) {
-                    String fieldPath = joinPath(path, field);
-                    if ((r = parseCdmRange(field)) != null) {
-                        ranges.put(rangeKey(obj.getClass().getSimpleName(), field.getName(), fieldPath), r);
-                    }
-                    if (!ClassUtils.isPrimitiveOrWrapper(field.getType()) && !(value instanceof Enum) && !(value instanceof String)) {
-                        if (value instanceof Object[]) {
-                            int i = 0;
-                            for (Object v : (Object[]) value) {
-                                resolveCdmRanges(ranges, joinPathIdx(fieldPath, i++), v);
-                            }
-                        } else if (value instanceof Iterable) {
-                            int[] idx = {0};
-                            ((Iterable) value).forEach(v -> resolveCdmRanges(ranges, joinPathIdx(fieldPath, idx[0]++), v));
-                        } else {
-                            resolveCdmRanges(ranges, fieldPath, value);
-                        }
-                    }
-                }
-            }
-        } catch (IllegalAccessException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
+    return joinPath(path, field.getName());
+  }
 
-    private static String joinPath(String path, Field field) {
+  private static String joinPathIdx(String path, int i) {
 
-        return joinPath(path, field.getName());
-    }
+    return path + "[" + i + "]";
+  }
 
-    private static String joinPathIdx(String path, int i) {
+  private static String joinPath(String path, String crumb) {
 
-        return path + "[" + i + "]";
-    }
+    return Arrays.asList(path, crumb).stream().filter(Objects::nonNull).collect(Collectors.joining("."));
+  }
 
-    private static String joinPath(String path, String crumb) {
+  private static String parseCdmRange(AnnotatedElement element) {
 
-        return Arrays.asList(path, crumb).stream().filter(Objects::nonNull).collect(Collectors.joining("."));
-    }
+    CdmVersion cdmVersion = element.getAnnotation(CdmVersion.class);
+    return cdmVersion != null ? cdmVersion.range() : null;
+  }
 
-    private static String parseCdmRange(AnnotatedElement element) {
+  private static String rangeKey(String clazz, String prop, String path) {
 
-        CdmVersion cdmVersion = element.getAnnotation(CdmVersion.class);
-        return cdmVersion != null ? cdmVersion.range() : null;
-    }
-
-    private static String rangeKey(String clazz, String prop, String path) {
-
-        return clazz + (prop != null ? "." + prop : "") + " (" + path + ")";
-    }
+    return clazz + (prop != null ? "." + prop : "") + " (" + path + ")";
+  }
 }
