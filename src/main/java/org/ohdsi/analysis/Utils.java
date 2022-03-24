@@ -151,6 +151,12 @@ public class Utils {
 
     DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter() {
 
+      @Override
+      public DefaultPrettyPrinter createInstance() {
+
+        return this;
+      }
+
       public DefaultPrettyPrinter withSeparators(Separators separators) {
 
         _separators = separators;
