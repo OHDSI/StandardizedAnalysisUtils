@@ -31,6 +31,12 @@ public class SemverUtilsTest {
     }
 
     @Test
+    public void testGetRangesIntersectionNoIntersection2() {
+        String intersection = getRangesIntersection(asList(">5.0.0", "<3.0.0"));
+        assertNull(intersection);
+    }
+
+    @Test
     public void testGetRangesIntersectionWithSame1() {
         String intersection = getRangesIntersection(asList(">=5.0.0", "5.0.0"));
         assertEquals("5.0.0", intersection);
