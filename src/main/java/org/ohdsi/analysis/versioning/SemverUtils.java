@@ -1,6 +1,6 @@
 package org.ohdsi.analysis.versioning;
 
-import com.vdurmont.semver4j.Semver;
+import org.semver4j.Semver;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,11 +18,10 @@ public class SemverUtils {
 
     /**
      * @param ranges A list of version ranges using limited node semver. e.g '5.3', '>=5.2.0', '3 - 5', '<6.0.0'.
-     *               Ranges can be specified only using a hyphen range e.g '3.0 - 5.2', as per the spec this is inclusive, don't add operators.
-     *               Tilde ~, caret ^ and pipe || are not supported.
+     *               Ranges can be specified only using primitive ranges '<' '<=' '>' '>=' and hyphen ranges e.g '3.0 - 5.2', as per the spec this is inclusive,
+     *               don't add other operators or range types. Tilde ~, caret ^ and pipe || are not supported.
      * @return The intersection between the provided ranges, if no intersection exists null is returned
-     * @throws IllegalArgumentException              is thrown when ranges is null or empty or contains invalid or unsupported version range syntax
-     * @throws com.vdurmont.semver4j.SemverException is thrown when range contains invalid or unsupported version range syntax
+     * @throws IllegalArgumentException is thrown when ranges is null or empty or contains invalid or unsupported version range syntax, is thrown when range contains invalid or unsupported version range syntax
      * @author Rowan Parry
      */
     public static String getRangesIntersection(List<String> ranges) {
@@ -55,9 +54,7 @@ public class SemverUtils {
                             result.add(rng);
                         }
                     } else {
-                        Semver initial = findBoundary(items.get(0));
-                        // Seems to be a bug in the lib does not consider the lower bounds without minor or patch specified, dirty hack to set them.
-                        Semver lower = new Semver(initial.getMajor() + "." + (initial.getMinor() == null ? "0" : initial.getMinor()) + "." + (initial.getPatch() == null ? "0" : initial.getPatch()), Semver.SemverType.NPM);
+                        Semver lower = findBoundary(items.get(0));
                         if (ranges.stream().allMatch(lower::satisfies)) {
                             result.add(">=" + lower);
                         }
@@ -85,13 +82,19 @@ public class SemverUtils {
 
     private static Semver findBoundary(String range) {
         String withoutOperator = removeOperator(range);
-        Semver boundary = new Semver(withoutOperator, Semver.SemverType.NPM);
+        Semver boundary = Semver.coerce(withoutOperator);
         if (withoutOperator.equals(range) || range.contains("=")) {
             return boundary;
         } else if (range.contains(">")) {
             return boundary.withIncPatch();
         } else if (range.contains("<")) {
-            return boundary.withIncPatch(-1);
+            if (boundary.getPatch() != 0) {
+                return boundary.withIncPatch(-1);
+            } else if (boundary.getMinor() != 0) {
+                return boundary.withIncMinor(-1);
+            } else {
+                return new Semver(boundary.getMajor() - 1 + ".99.99");
+            }
         } else {
             throw new IllegalArgumentException(range + " is not a valid version range. Please use only things  5.3, >=5.2.0, 3 - 5, <6.0.0");
         }

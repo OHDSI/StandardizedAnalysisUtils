@@ -80,9 +80,9 @@
       <version>31.1-jre</version>
     </dependency>
     <dependency>
-      <groupId>com.vdurmont</groupId>
+      <groupId>org.semver4j</groupId>
       <artifactId>semver4j</artifactId>
-      <version>3.1.0</version>
+      <version>4.3.0</version>
     </dependency>
   </dependencies>
 

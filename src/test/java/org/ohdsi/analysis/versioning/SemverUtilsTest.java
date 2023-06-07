@@ -1,6 +1,5 @@
 package org.ohdsi.analysis.versioning;
 
-import com.vdurmont.semver4j.SemverException;
 import org.junit.Test;
 
 import static java.util.Arrays.asList;
@@ -30,7 +29,7 @@ public class SemverUtilsTest {
         String intersection = getRangesIntersection(asList(">=5.0.0", "3.0.0"));
         assertNull(intersection);
     }
-    
+
     @Test
     public void testGetRangesIntersectionWithSame1() {
         String intersection = getRangesIntersection(asList(">=5.0.0", "5.0.0"));
@@ -68,6 +67,12 @@ public class SemverUtilsTest {
     }
 
     @Test
+    public void testGetRangesIntersectionWithRangeHack() {
+        String intersection = getRangesIntersection(asList("4.0 - 5.0", "<5"));
+        assertEquals("4.0.0 - 4.99.99", intersection);
+    }
+
+    @Test
     public void testGetRangesIntersectionWithTwoRanges() {
         String intersection = getRangesIntersection(asList("2.3.0 - 4.5.0", "3.0.0 - 5.3.0", "*"));
         assertEquals("3.0.0 - 4.5.0", intersection);
@@ -84,7 +89,7 @@ public class SemverUtilsTest {
         getRangesIntersection(emptyList());
     }
 
-    @Test(expected = SemverException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testGetRangesIntersectionWithJunk() {
         getRangesIntersection(asList("5.3.0", "junk"));
     }
@@ -94,5 +99,5 @@ public class SemverUtilsTest {
         String intersection = getRangesIntersection(singletonList("*"));
         assertEquals("*", intersection);
     }
-    
+
 }
