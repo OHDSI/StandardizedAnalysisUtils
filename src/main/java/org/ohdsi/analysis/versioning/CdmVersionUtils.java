@@ -1,6 +1,5 @@
 package org.ohdsi.analysis.versioning;
 
-import com.google.common.base.MoreObjects;
 import org.apache.commons.lang3.ClassUtils;
 
 import java.lang.reflect.AnnotatedElement;
@@ -18,7 +17,7 @@ public class CdmVersionUtils {
 
   public static void determineCdmCompatibility(CdmCompatibilitySpec compatibilitySpec) {
 
-    compatibilitySpec.setCdmVersionRange(MoreObjects.firstNonNull(compatibilitySpec.getCdmVersionRange(), VERSION_X_RANGE));
+    compatibilitySpec.setCdmVersionRange(getVersionRange(compatibilitySpec));
 
     Map<String, String> derivedCdmRanges = new HashMap<>();
     resolveCdmRanges(derivedCdmRanges, null, compatibilitySpec);
@@ -41,6 +40,10 @@ public class CdmVersionUtils {
         compatibilitySpec.setCdmVersionRange(derivedIntersection);
       }
     }
+  }
+  
+  private static String getVersionRange(CdmCompatibilitySpec spec) {
+    return spec.getCdmVersionRange() != null ? spec.getCdmVersionRange() : VERSION_X_RANGE;
   }
 
   private static void resolveCdmRanges(Map<String, String> ranges, String path, Object obj) {
